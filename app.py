@@ -101,13 +101,23 @@ with tab_peer:
             st.metric("Admin $ / participant", money(r["admin_per_head"]))
 
     st.subheader("Plan design features")
-    feat_rows = []
-    for col_key, label in FEATURE_LABELS:
-        feat_rows.append(
-            {"Feature": label, **{short: ("✓" if str(featured[tag][col_key]) == "1" else "—")
-                                  for tag, short, _ in PLAN_ORDER}}
-        )
-    st.dataframe(pd.DataFrame(feat_rows).set_index("Feature"), use_container_width=True)
+    feat_df = pd.DataFrame(
+        {short: [(str(featured[tag][col_key]) == "1") for col_key, _ in FEATURE_LABELS]
+         for tag, short, _ in PLAN_ORDER},
+        index=[label for _, label in FEATURE_LABELS],
+    )
+
+    def _feat_cell(v):
+        if v:
+            return ("background-color: #d7efe6; color: #0e544c; "
+                    "font-weight: 700; text-align: center;")
+        return ("background-color: #f3efe6; color: #b3aa99; text-align: center;")
+
+    st.dataframe(
+        feat_df.style.map(_feat_cell).format(lambda v: "✓" if v else "—"),
+        use_container_width=True,
+    )
+    st.caption("Green = feature reported on the 2024 Form 5500; grey = not reported.")
 
     st.subheader("Employer generosity vs market")
     er = universe["er_per_active"].dropna()
