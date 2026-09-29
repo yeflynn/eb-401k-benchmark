@@ -31,6 +31,9 @@ PLAN_ORDER = [
     ("woven", "Woven by Toyota, U.S.", "401(k) Plan"),
 ]
 
+BAR_COLOR = "#0068c9"
+BAR_SIZE = 36
+
 CAVEATS = """**Data & caveats**
 - Source: U.S. Department of Labor Form 5500 filings, plan year 2024 (filed in 2025). Filings typically lag ~2 years.
 - Market universe: 401(k) plans with 200–2,000 active participants. Toyota Motor North America (52,368 participants) is shown for reference but sits outside the comparison band.
@@ -123,8 +126,6 @@ with tab_peer:
     st.subheader("Employer generosity vs market")
     er = universe["er_per_active"].dropna()
     sh = universe["er_share"].dropna()
-    BAR_COLOR = "#0068c9"
-    BAR_SIZE = 36
     ABBR = {"Toyota Motor North America": "TMNA", "Toyota Research Institute": "TRI",
             "Toyota Connected North America": "TCNA", "Woven by Toyota, U.S.": "Woven"}
     plans = [ABBR[short] for _, short, _ in PLAN_ORDER]
@@ -211,10 +212,16 @@ with tab_market:
         s = universe[metric].dropna()
         if metric == "er_per_active":
             s = s[s <= s.quantile(0.99)]
-        bins = pd.cut(s, bins=30)
-        hist = s.groupby(bins, observed=True).size()
-        hist.index = [f"{iv.left:,.0f}–{iv.right:,.0f}" for iv in hist.index]
-        st.bar_chart(hist, use_container_width=True)
+        hist_chart = (
+            alt.Chart(pd.DataFrame({"value": s}))
+            .mark_bar(color=BAR_COLOR)
+            .encode(
+                x=alt.X("value:Q", bin=alt.Bin(maxbins=30), title=title),
+                y=alt.Y("count()", title="Number of plans"),
+            )
+            .properties(height=260)
+        )
+        st.altair_chart(hist_chart, use_container_width=True)
 
         ranks = []
         for tag, short, _ in PLAN_ORDER:
