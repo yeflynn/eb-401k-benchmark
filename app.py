@@ -122,17 +122,28 @@ with tab_peer:
 
     st.subheader("Employer generosity vs market")
     er = universe["er_per_active"].dropna()
-    bench = pd.DataFrame(
+    BAR_COLOR = "#0068c9"
+    BAR_SIZE = 36
+    gen_df = pd.DataFrame(
         {
             "Plan": ["Market p50", "Market p75", "Market p90"]
             + [short for _, short, _ in PLAN_ORDER],
-            "Employer $ per active participant (2024)": [
-                er.quantile(0.50), er.quantile(0.75), er.quantile(0.90),
-                *(featured[tag]["er_per_active"] for tag, _, _ in PLAN_ORDER),
+            "Employer $": [
+                float(er.quantile(0.50)), float(er.quantile(0.75)), float(er.quantile(0.90)),
+                *(float(featured[tag]["er_per_active"]) for tag, _, _ in PLAN_ORDER),
             ],
         }
-    ).set_index("Plan")
-    st.bar_chart(bench, use_container_width=True)
+    )
+    gen_bars = (
+        alt.Chart(gen_df)
+        .mark_bar(color=BAR_COLOR, size=BAR_SIZE)
+        .encode(
+            x=alt.X("Plan:N", sort=None, title=None),
+            y=alt.Y("Employer $:Q", title="Employer $ per active participant (2024)"),
+            tooltip=[alt.Tooltip("Plan:N"), alt.Tooltip("Employer $:Q", format="$,.0f")],
+        )
+    )
+    st.altair_chart(gen_bars, use_container_width=True)
 
     st.subheader("Employer share of total contributions (2024)")
     sh = universe["er_share"].dropna()
@@ -150,7 +161,7 @@ with tab_peer:
     )
     bars = (
         alt.Chart(share_bars)
-        .mark_bar(color="#147066")
+        .mark_bar(color=BAR_COLOR, size=BAR_SIZE)
         .encode(
             x=alt.X("Plan:N", sort=None, title=None),
             y=alt.Y("Employer %:Q", title="Employer % of total contributions (2024)"),
