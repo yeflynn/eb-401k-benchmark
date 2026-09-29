@@ -4,6 +4,7 @@ Compares featured employer 401(k) plans against a market universe built from
 DOL Form 5500 filings (plan year 2024). Private use only.
 """
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -135,19 +136,41 @@ with tab_peer:
 
     st.subheader("Employer share of total contributions (2024)")
     sh = universe["er_share"].dropna()
-    share_bench = pd.DataFrame(
+    share_bars = pd.DataFrame(
         {
-            "Plan": ["Market p50", "Market p75", "Market p90"]
-            + [short for _, short, _ in PLAN_ORDER],
-            "Employer % of total contributions": [
-                sh.quantile(0.50), sh.quantile(0.75), sh.quantile(0.90),
-                *(featured[tag]["er_share"] for tag, _, _ in PLAN_ORDER),
-            ],
+            "Plan": [short for _, short, _ in PLAN_ORDER],
+            "Employer %": [float(featured[tag]["er_share"]) for tag, _, _ in PLAN_ORDER],
         }
-    ).set_index("Plan")
-    st.bar_chart(share_bench, use_container_width=True)
+    )
+    share_lines = pd.DataFrame(
+        {
+            "Benchmark": ["Market p50", "Market p75", "Market p90"],
+            "value": [float(sh.quantile(0.50)), float(sh.quantile(0.75)), float(sh.quantile(0.90))],
+        }
+    )
+    bars = (
+        alt.Chart(share_bars)
+        .mark_bar(color="#147066")
+        .encode(
+            x=alt.X("Plan:N", sort=None, title=None),
+            y=alt.Y("Employer %:Q", title="Employer % of total contributions (2024)"),
+            tooltip=[alt.Tooltip("Plan:N"), alt.Tooltip("Employer %:Q", format=".1f")],
+        )
+    )
+    rules = (
+        alt.Chart(share_lines)
+        .mark_rule(strokeDash=[6, 4], size=2)
+        .encode(
+            y=alt.Y("value:Q"),
+            color=alt.Color("Benchmark:N",
+                            scale=alt.Scale(range=["#b3aa99", "#6b6259", "#2b2620"]),
+                            legend=alt.Legend(title="Market benchmark")),
+            tooltip=[alt.Tooltip("Benchmark:N"), alt.Tooltip("value:Q", format=".1f")],
+        )
+    )
+    st.altair_chart(bars + rules, use_container_width=True)
     st.caption(
-        "TMNA is outside the 200–2,000 participant comparison band; its bars are shown for reference only."
+        "TMNA is outside the 200–2,000 participant comparison band; its bar is shown for reference only."
     )
     caveats()
 
