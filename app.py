@@ -44,6 +44,8 @@ def load_data():
     df["featured"] = df["featured"].fillna("")
     df["er_per_active"] = df["employer_contrib"] / df["active_participants"].replace(0, pd.NA)
     df["admin_per_head"] = df["admin_expenses"] / df["total_participants"].replace(0, pd.NA)
+    total_contrib = df["employer_contrib"] + df["participant_contrib"]
+    df["er_share"] = (df["employer_contrib"] / total_contrib.replace(0, pd.NA) * 100)
     return df
 
 
@@ -58,6 +60,12 @@ def money(x):
     if pd.isna(x):
         return "—"
     return f"${x:,.0f}"
+
+
+def pct1(x):
+    if pd.isna(x):
+        return "—"
+    return f"{x:.1f}%"
 
 
 def caveats():
@@ -86,8 +94,9 @@ with tab_peer:
             st.caption(plan)
             st.metric("Active participants", f"{int(r['active_participants']):,}")
             st.metric("Plan assets", money(r["assets_eoy"]))
-            st.metric("Employer contributions", money(r["employer_contrib"]))
-            st.metric("Employee contributions", money(r["participant_contrib"]))
+            st.metric("Employer contributions (2024)", money(r["employer_contrib"]))
+            st.metric("Employee contributions (2024)", money(r["participant_contrib"]))
+            st.metric("Employer share of contributions (2024)", pct1(r["er_share"]))
             st.metric("Employer $ / active participant", money(r["er_per_active"]))
             st.metric("Admin $ / participant", money(r["admin_per_head"]))
 
@@ -106,15 +115,29 @@ with tab_peer:
         {
             "Plan": ["Market p50", "Market p75", "Market p90"]
             + [short for _, short, _ in PLAN_ORDER],
-            "Employer $ per active participant": [
+            "Employer $ per active participant (2024)": [
                 er.quantile(0.50), er.quantile(0.75), er.quantile(0.90),
                 *(featured[tag]["er_per_active"] for tag, _, _ in PLAN_ORDER),
             ],
         }
     ).set_index("Plan")
     st.bar_chart(bench, use_container_width=True)
+
+    st.subheader("Employer share of total contributions (2024)")
+    sh = universe["er_share"].dropna()
+    share_bench = pd.DataFrame(
+        {
+            "Plan": ["Market p50", "Market p75", "Market p90"]
+            + [short for _, short, _ in PLAN_ORDER],
+            "Employer % of total contributions": [
+                sh.quantile(0.50), sh.quantile(0.75), sh.quantile(0.90),
+                *(featured[tag]["er_share"] for tag, _, _ in PLAN_ORDER),
+            ],
+        }
+    ).set_index("Plan")
+    st.bar_chart(share_bench, use_container_width=True)
     st.caption(
-        "TMNA is outside the 200–2,000 participant comparison band; its bar is shown for reference only."
+        "TMNA is outside the 200–2,000 participant comparison band; its bars are shown for reference only."
     )
     caveats()
 
@@ -126,8 +149,8 @@ with tab_market:
     )
 
     for metric, title, fmt in [
-        ("er_per_active", "Employer contributions per active participant", money),
-        ("admin_per_head", "Administrative expense per participant (Schedule H)", money),
+        ("er_per_active", "Employer contributions per active participant (2024)", money),
+        ("admin_per_head", "Administrative expense per participant (2024, Schedule H)", money),
     ]:
         st.markdown(f"**{title}**")
         s = universe[metric].dropna()
@@ -159,7 +182,7 @@ with tab_market:
             "p75": [er.quantile(0.75), ad.quantile(0.75)],
             "p90": [er.quantile(0.90), ad.quantile(0.90)],
         },
-        index=["Employer $ / active participant", "Admin $ / participant"],
+        index=["Employer $ / active participant (2024)", "Admin $ / participant (2024)"],
     ).map(lambda x: f"${x:,.0f}")
     st.dataframe(pct_df, use_container_width=True)
     caveats()
@@ -181,10 +204,11 @@ with tab_lookup:
                     "State": hits["state"],
                     "Active": hits["active_participants"],
                     "Assets": hits["assets_eoy"].map(money),
-                    "Employer $/active": hits["er_per_active"].map(money),
+                    "Employer $/active (2024)": hits["er_per_active"].map(money),
+                    "Employer share (2024)": hits["er_share"].map(pct1),
                     "ER percentile": hits["er_per_active"].map(
                         lambda v: f"{pct_rank(er, v):.0f}th" if pd.notna(v) else "—"),
-                    "Admin $/head": hits["admin_per_head"].map(money),
+                    "Admin $/head (2024)": hits["admin_per_head"].map(money),
                 }
             )
             st.dataframe(out, use_container_width=True, hide_index=True)
