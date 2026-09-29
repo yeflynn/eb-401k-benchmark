@@ -130,65 +130,76 @@ with tab_peer:
             "Toyota Connected North America": "TCNA", "Woven by Toyota, U.S.": "Woven"}
     plans = [ABBR[short] for _, short, _ in PLAN_ORDER]
 
-    def _layered_chart(bar_df, line_df, y_title, tip_fmt):
+    def _layered_chart(bar_values, bench_values, y_title, pct):
+        bar_df = pd.DataFrame({"Plan": plans, "value": bar_values})
+        line_df = pd.DataFrame(
+            {
+                "Benchmark": ["Market p50", "Market p75", "Market p90"],
+                "value": bench_values,
+                "Plan": plans[0],
+            }
+        )
+        bar_df["bar_label"] = bar_df["value"].map(
+            lambda v: f"{v:.1f}%" if pct else f"${v:,.0f}")
+        line_df["line_label"] = line_df["value"].map(
+            lambda v: f"{v:.1f}%" if pct else f"${v:,.0f}")
         vmax = float(bar_df["value"].max())
         y_scale = alt.Scale(domain=[0, vmax * 1.15]) if vmax > 0 else alt.Scale()
+        x_enc = alt.X("Plan:N", sort=None, title=None,
+                      scale=alt.Scale(paddingOuter=0.6))
         bars = (
             alt.Chart(bar_df)
             .mark_bar(color=BAR_COLOR, size=BAR_SIZE)
             .encode(
-                x=alt.X("Plan:N", sort=None, title=None),
+                x=x_enc,
                 y=alt.Y("value:Q", title=y_title, scale=y_scale),
                 tooltip=[alt.Tooltip("Plan:N"),
-                         alt.Tooltip("value:Q", format=tip_fmt, title=y_title)],
+                         alt.Tooltip("bar_label:N", title=y_title)],
             )
         )
-        labels = (
+        bar_labels = (
             alt.Chart(bar_df)
             .mark_text(dy=-8, color="#2b2620", fontWeight=600, fontSize=12)
             .encode(
-                x=alt.X("Plan:N", sort=None),
+                x=x_enc,
                 y=alt.Y("value:Q", scale=y_scale),
-                text=alt.Text("value:Q", format=tip_fmt),
+                text=alt.Text("bar_label:N"),
             )
         )
         rules = (
             alt.Chart(line_df)
             .mark_rule(strokeDash=[6, 4], size=2)
             .encode(
-                y=alt.Y("value:Q"),
+                y=alt.Y("value:Q", scale=y_scale),
                 color=alt.Color("Benchmark:N",
                                 scale=alt.Scale(range=["#b3aa99", "#6b6259", "#2b2620"]),
                                 legend=alt.Legend(title="Market benchmark")),
                 tooltip=[alt.Tooltip("Benchmark:N"),
-                         alt.Tooltip("value:Q", format=tip_fmt, title="Benchmark value")],
+                         alt.Tooltip("line_label:N", title="Benchmark")],
             )
         )
-        return (bars + rules + labels).properties(height=300)
-
-    def _bench_lines(s):
-        return pd.DataFrame(
-            {
-                "Benchmark": ["Market p50", "Market p75", "Market p90"],
-                "value": [float(s.quantile(q)) for q in (0.50, 0.75, 0.90)],
-            }
+        line_labels = (
+            alt.Chart(line_df)
+            .mark_text(align="right", dx=-26, dy=-6, color="#6b6259", fontSize=11)
+            .encode(
+                x=x_enc,
+                y=alt.Y("value:Q", scale=y_scale),
+                text=alt.Text("line_label:N"),
+            )
         )
+        return (bars + rules + bar_labels + line_labels).properties(height=300)
 
     gen_chart = _layered_chart(
-        pd.DataFrame({"Plan": plans,
-                      "value": [float(featured[tag]["er_per_active"])
-                                for tag, _, _ in PLAN_ORDER]}),
-        _bench_lines(er),
+        [float(featured[tag]["er_per_active"]) for tag, _, _ in PLAN_ORDER],
+        [float(er.quantile(q)) for q in (0.50, 0.75, 0.90)],
         "USD per active participant",
-        "$,.0f",
+        pct=False,
     )
     share_chart = _layered_chart(
-        pd.DataFrame({"Plan": plans,
-                      "value": [float(featured[tag]["er_share"])
-                                for tag, _, _ in PLAN_ORDER]}),
-        _bench_lines(sh),
+        [float(featured[tag]["er_share"]) for tag, _, _ in PLAN_ORDER],
+        [float(sh.quantile(q)) for q in (0.50, 0.75, 0.90)],
         "Employer % of total contributions",
-        ".1f",
+        pct=True,
     )
 
     c1, cdiv, c2 = st.columns([10, 1, 10])
