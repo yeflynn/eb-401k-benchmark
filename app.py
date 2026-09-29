@@ -131,14 +131,25 @@ with tab_peer:
     plans = [ABBR[short] for _, short, _ in PLAN_ORDER]
 
     def _layered_chart(bar_df, line_df, y_title, tip_fmt):
+        vmax = float(bar_df["value"].max())
+        y_scale = alt.Scale(domain=[0, vmax * 1.15]) if vmax > 0 else alt.Scale()
         bars = (
             alt.Chart(bar_df)
             .mark_bar(color=BAR_COLOR, size=BAR_SIZE)
             .encode(
                 x=alt.X("Plan:N", sort=None, title=None),
-                y=alt.Y("value:Q", title=y_title),
+                y=alt.Y("value:Q", title=y_title, scale=y_scale),
                 tooltip=[alt.Tooltip("Plan:N"),
                          alt.Tooltip("value:Q", format=tip_fmt, title=y_title)],
+            )
+        )
+        labels = (
+            alt.Chart(bar_df)
+            .mark_text(dy=-8, color="#2b2620", fontWeight=600, fontSize=12)
+            .encode(
+                x=alt.X("Plan:N", sort=None),
+                y=alt.Y("value:Q", scale=y_scale),
+                text=alt.Text("value:Q", format=tip_fmt),
             )
         )
         rules = (
@@ -153,7 +164,7 @@ with tab_peer:
                          alt.Tooltip("value:Q", format=tip_fmt, title="Benchmark value")],
             )
         )
-        return (bars + rules).properties(height=300)
+        return (bars + rules + labels).properties(height=300)
 
     def _bench_lines(s):
         return pd.DataFrame(
