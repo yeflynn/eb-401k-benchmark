@@ -31,7 +31,7 @@ PLAN_ORDER = [
     ("woven", "Woven by Toyota, U.S.", "401(k) Plan"),
 ]
 
-BAR_COLOR = "#0068c9"
+BAR_COLOR = "#0e544c"
 BAR_SIZE = 36
 
 CAVEATS = """**Data & caveats**
