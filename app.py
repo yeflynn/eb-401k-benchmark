@@ -122,64 +122,75 @@ with tab_peer:
 
     st.subheader("Employer generosity vs market")
     er = universe["er_per_active"].dropna()
+    sh = universe["er_share"].dropna()
     BAR_COLOR = "#0068c9"
     BAR_SIZE = 36
-    gen_df = pd.DataFrame(
-        {
-            "Plan": ["Market p50", "Market p75", "Market p90"]
-            + [short for _, short, _ in PLAN_ORDER],
-            "Employer $": [
-                float(er.quantile(0.50)), float(er.quantile(0.75)), float(er.quantile(0.90)),
-                *(float(featured[tag]["er_per_active"]) for tag, _, _ in PLAN_ORDER),
-            ],
-        }
-    )
-    gen_bars = (
-        alt.Chart(gen_df)
-        .mark_bar(color=BAR_COLOR, size=BAR_SIZE)
-        .encode(
-            x=alt.X("Plan:N", sort=None, title=None),
-            y=alt.Y("Employer $:Q", title="Employer $ per active participant (2024)"),
-            tooltip=[alt.Tooltip("Plan:N"), alt.Tooltip("Employer $:Q", format="$,.0f")],
-        )
-    )
-    st.altair_chart(gen_bars, use_container_width=True)
+    ABBR = {"Toyota Motor North America": "TMNA", "Toyota Research Institute": "TRI",
+            "Toyota Connected North America": "TCNA", "Woven by Toyota, U.S.": "Woven"}
+    plans = [ABBR[short] for _, short, _ in PLAN_ORDER]
 
-    st.subheader("Employer share of total contributions (2024)")
-    sh = universe["er_share"].dropna()
-    share_bars = pd.DataFrame(
-        {
-            "Plan": [short for _, short, _ in PLAN_ORDER],
-            "Employer %": [float(featured[tag]["er_share"]) for tag, _, _ in PLAN_ORDER],
-        }
-    )
-    share_lines = pd.DataFrame(
-        {
-            "Benchmark": ["Market p50", "Market p75", "Market p90"],
-            "value": [float(sh.quantile(0.50)), float(sh.quantile(0.75)), float(sh.quantile(0.90))],
-        }
-    )
-    bars = (
-        alt.Chart(share_bars)
-        .mark_bar(color=BAR_COLOR, size=BAR_SIZE)
-        .encode(
-            x=alt.X("Plan:N", sort=None, title=None),
-            y=alt.Y("Employer %:Q", title="Employer % of total contributions (2024)"),
-            tooltip=[alt.Tooltip("Plan:N"), alt.Tooltip("Employer %:Q", format=".1f")],
+    def _layered_chart(bar_df, line_df, y_title, tip_fmt):
+        bars = (
+            alt.Chart(bar_df)
+            .mark_bar(color=BAR_COLOR, size=BAR_SIZE)
+            .encode(
+                x=alt.X("Plan:N", sort=None, title=None),
+                y=alt.Y("value:Q", title=y_title),
+                tooltip=[alt.Tooltip("Plan:N"),
+                         alt.Tooltip("value:Q", format=tip_fmt, title=y_title)],
+            )
         )
-    )
-    rules = (
-        alt.Chart(share_lines)
-        .mark_rule(strokeDash=[6, 4], size=2)
-        .encode(
-            y=alt.Y("value:Q"),
-            color=alt.Color("Benchmark:N",
-                            scale=alt.Scale(range=["#b3aa99", "#6b6259", "#2b2620"]),
-                            legend=alt.Legend(title="Market benchmark")),
-            tooltip=[alt.Tooltip("Benchmark:N"), alt.Tooltip("value:Q", format=".1f")],
+        rules = (
+            alt.Chart(line_df)
+            .mark_rule(strokeDash=[6, 4], size=2)
+            .encode(
+                y=alt.Y("value:Q"),
+                color=alt.Color("Benchmark:N",
+                                scale=alt.Scale(range=["#b3aa99", "#6b6259", "#2b2620"]),
+                                legend=alt.Legend(title="Market benchmark")),
+                tooltip=[alt.Tooltip("Benchmark:N"),
+                         alt.Tooltip("value:Q", format=tip_fmt, title="Benchmark value")],
+            )
         )
+        return (bars + rules).properties(height=300)
+
+    def _bench_lines(s):
+        return pd.DataFrame(
+            {
+                "Benchmark": ["Market p50", "Market p75", "Market p90"],
+                "value": [float(s.quantile(q)) for q in (0.50, 0.75, 0.90)],
+            }
+        )
+
+    gen_chart = _layered_chart(
+        pd.DataFrame({"Plan": plans,
+                      "value": [float(featured[tag]["er_per_active"])
+                                for tag, _, _ in PLAN_ORDER]}),
+        _bench_lines(er),
+        "USD per active participant",
+        "$,.0f",
     )
-    st.altair_chart(bars + rules, use_container_width=True)
+    share_chart = _layered_chart(
+        pd.DataFrame({"Plan": plans,
+                      "value": [float(featured[tag]["er_share"])
+                                for tag, _, _ in PLAN_ORDER]}),
+        _bench_lines(sh),
+        "Employer % of total contributions",
+        ".1f",
+    )
+
+    c1, cdiv, c2 = st.columns([10, 1, 10])
+    with c1:
+        st.markdown("**Employer $ per active participant (2024)**")
+        st.altair_chart(gen_chart, use_container_width=True)
+    with cdiv:
+        st.markdown(
+            '<div style="border-left:2px solid #e5e1d8;height:330px;margin:56px 0 0 40%"></div>',
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown("**Employer share of total contributions (2024)**")
+        st.altair_chart(share_chart, use_container_width=True)
     st.caption(
         "TMNA is outside the 200–2,000 participant comparison band; its bar is shown for reference only."
     )
